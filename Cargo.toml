@@ -1,0 +1,8 @@
+[package]
+name = "ram-utils"
+version = "0.1.0"
+authors = ["Ralph Minderhoud <ralphminderhoud@gmail.com>"]
+
+[dependencies]
+clap = "~2.32"
+failure = "~0.1.3"
