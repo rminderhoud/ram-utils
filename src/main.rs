@@ -19,9 +19,19 @@ fn main() {
         .required(true)
         .index(1);
 
-    let recursive_arg = Arg::with_name("recursive").short("r");
-    let ignore_files_arg = Arg::with_name("ignore-files").conflicts_with("ignore-dirs");
-    let ignore_dirs_arg = Arg::with_name("ignore-dirs").conflicts_with("ignore-files");
+    let recursive_arg = Arg::with_name("recursive")
+        .short("r")
+        .help("Convert directories recursively");
+
+    let ignore_files_arg = Arg::with_name("ignore-files")
+        .long("ignore-files")
+        .conflicts_with("ignore-dirs")
+        .help("Ignore files during conversion");
+
+    let ignore_dirs_arg = Arg::with_name("ignore-dirs")
+        .long("ignore-dirs")
+        .conflicts_with("ignore-files")
+        .help("Ignore directories during conversion");
 
     let args = App::new("RAM Utils")
         .version("0.1")
