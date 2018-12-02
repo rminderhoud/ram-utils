@@ -80,14 +80,15 @@ fn convert_case_command(args: &ArgMatches, case: LetterCase) {
     }
 
     if path.is_dir() {
-        if let Err(e) = convert_children(
-            path,
-            &case,
-            args.is_present("recursive"),
-            args.is_present("ignore-files"),
-            args.is_present("ignore-dirs"),
-        ) {
-            eprintln!("Error: {}", e);
+        if args.is_present("recursive") {
+            if let Err(e) = convert_children(
+                path,
+                &case,
+                args.is_present("ignore-files"),
+                args.is_present("ignore-dirs"),
+            ) {
+                eprintln!("Error: {}", e);
+            }
         }
 
         if let Err(e) = convert_file_or_dir(path, &case) {
@@ -100,7 +101,6 @@ fn convert_case_command(args: &ArgMatches, case: LetterCase) {
 fn convert_children(
     path: &Path,
     case: &LetterCase,
-    recursive: bool,
     ignore_files: bool,
     ignore_dirs: bool,
 ) -> Result<(), Error> {
@@ -110,11 +110,8 @@ fn convert_children(
         let entry = entry?;
         let file_type = entry.file_type()?;
 
-        if file_type.is_dir() && recursive {
-            convert_children(&entry.path(), case, recursive, ignore_files, ignore_dirs)?;
-        }
-
         if file_type.is_dir() && !ignore_dirs {
+            convert_children(&entry.path(), case, ignore_files, ignore_dirs)?;
             convert_file_or_dir(&entry.path(), case)?;
         }
 
@@ -230,7 +227,7 @@ mod tests {
             }
         }
 
-        convert_children(&root, &LetterCase::UpperCase, false, false, false).unwrap();
+        convert_children(&root, &LetterCase::UpperCase, false, false).unwrap();
 
         for path in &upper_paths {
             assert_eq!(path.exists(), true);
@@ -249,7 +246,7 @@ mod tests {
             }
         }
 
-        convert_children(&root, &LetterCase::LowerCase, false, false, false).unwrap();
+        convert_children(&root, &LetterCase::LowerCase, false, false).unwrap();
 
         for path in &lower_paths {
             assert_eq!(path.exists(), true);
@@ -276,7 +273,7 @@ mod tests {
         fs::create_dir_all(&lower_dir).unwrap();
         fs::File::create(&lower_file).unwrap();
 
-        convert_children(&root, &LetterCase::UpperCase, false, true, false).unwrap();
+        convert_children(&root, &LetterCase::UpperCase, true, false).unwrap();
 
         assert_eq!(upper_dir.exists(), true);
         assert_eq!(lower_file.exists(), true);
@@ -287,7 +284,7 @@ mod tests {
         fs::create_dir_all(&lower_dir).unwrap();
         fs::File::create(&lower_file).unwrap();
 
-        convert_children(&root, &LetterCase::UpperCase, false, false, true).unwrap();
+        convert_children(&root, &LetterCase::UpperCase, false, true).unwrap();
 
         assert_eq!(lower_dir.exists(), true);
         assert_eq!(upper_file.exists(), true);
@@ -308,7 +305,7 @@ mod tests {
         fs::create_dir_all(&lower_file.parent().unwrap()).unwrap();
         fs::File::create(&lower_file).unwrap();
 
-        convert_children(&root, &LetterCase::UpperCase, true, false, false).unwrap();
+        convert_children(&root, &LetterCase::UpperCase, false, false).unwrap();
 
         assert_eq!(upper_file.exists(), true);
 
