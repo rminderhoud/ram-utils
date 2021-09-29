@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate failure;
 
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
@@ -44,14 +45,21 @@ fn main() {
                 .arg(&recursive_arg)
                 .arg(&ignore_files_arg)
                 .arg(&ignore_dirs_arg),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("lower")
                 .about("Convert files and/or directories to lower case")
                 .arg(&path_arg)
                 .arg(&recursive_arg)
                 .arg(&ignore_files_arg)
                 .arg(&ignore_dirs_arg),
-        ).get_matches();
+        )
+        .subcommand(
+            SubCommand::with_name("unique_ext")
+                .about("Find all unique extensions in this directory")
+                .arg(&path_arg),
+        )
+        .get_matches();
 
     match args.subcommand() {
         ("upper", Some(sub_args)) => {
@@ -59,6 +67,10 @@ fn main() {
         }
         ("lower", Some(sub_args)) => {
             convert_case_command(sub_args, LetterCase::LowerCase);
+        }
+        ("unique_ext", Some(sub_args)) => {
+            let path = Path::new(args.value_of("path").unwrap_or("."));
+            find_unique_extensions_command(path);
         }
         _ => {}
     }
@@ -152,6 +164,54 @@ fn convert_file_or_dir(path: &Path, case: &LetterCase) -> Result<(), Error> {
     println!("Converting {:?} => {:?}", path, target_path);
     fs::rename(path, target_path)?;
     Ok(())
+}
+
+fn find_unique_extensions_command(path: &Path) {
+    if !path.exists() || !path.is_dir() {
+        eprintln!(
+            "Directory does not exist or is not a valid directory path: {}",
+            path.display()
+        );
+        return;
+    }
+
+    if let Ok(extensions) = find_unique_extensions(path) {
+        let mut exts: Vec<&String> = extensions.keys().collect();
+        exts.sort();
+        for ext in exts {
+            println!("{} ({} files)", ext, extensions[ext]);
+        }
+    } else {
+        eprintln!("Failed to find unique extensions");
+    }
+}
+
+fn find_unique_extensions(path: &Path) -> Result<HashMap<String, u32>, Error> {
+    let mut res = HashMap::new();
+
+    let entries = fs::read_dir(path)?;
+
+    for entry in entries {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+
+        if file_type.is_dir() {
+            let child_entries = find_unique_extensions(&entry.path())?;
+            for (ext, count) in child_entries.iter() {
+                let c = res.entry(String::from(ext)).or_insert(0);
+                *c += count;
+            }
+        }
+
+        if file_type.is_file() || file_type.is_symlink() {
+            if let Some(ext) = entry.path().extension() {
+                let e = String::from(ext.to_str().unwrap());
+                let count = res.entry(e).or_insert(0);
+                *count += 1;
+            }
+        }
+    }
+    Ok(res)
 }
 
 #[cfg(test)]
@@ -308,6 +368,31 @@ mod tests {
         convert_children(&root, &LetterCase::UpperCase, false, false).unwrap();
 
         assert_eq!(upper_file.exists(), true);
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn test_find_extensions() {
+        let root = env::temp_dir().join("ram-utils-test-find-extensions");
+
+        if root.exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
+
+        let extensions = ["foo", "bar", "baz123"];
+        for ext in extensions {
+            let mut filepath = root.join("testfile");
+            filepath.set_extension(ext);
+            fs::create_dir_all(&filepath.parent().unwrap()).unwrap();
+            fs::File::create(&filepath).unwrap();
+        }
+
+        let exts = find_unique_extensions(&root).unwrap();
+        for (ext, count) in exts.iter() {
+            assert!(extensions.contains(&ext.as_str()));
+            assert_eq!(*count, 1);
+        }
 
         fs::remove_dir_all(&root).unwrap();
     }
